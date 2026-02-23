@@ -1,17 +1,19 @@
 # 🌿 EcoSort 
 
+**[😎 Click Here to Try the Live Demo!](https://eco-sort-mu.vercel.app/)**
+
 **EcoSort ** is a smart, web-based waste classification and routing system designed to promote a "Green Campus" environment. By leveraging on-device machine learning, it helps students and staff instantly identify waste types and directs them to the nearest appropriate disposal bin.
 
 ---
 
-## 🎯 Problem Statement
+## Problem Statement
 **Category: Open Innovation**
 
 Improper waste segregation on educational campuses leads to inefficient recycling and increased environmental footprint. Students and staff often struggle to identify which bin (e.g., Paper/Plastic, Metal/Glass, Organic) is appropriate for their waste, or they do not know where the nearest proper bin is located. EcoSort AI tackles this by providing real-time AI classification and mapping.
 
 ---
 
-## 🚀 About the Project (Green Campus Initiative)
+## About the Project (Green Campus Initiative)
 EcoSort AI acts as a digital sustainability assistant. Users simply point their device's camera at a piece of waste. The application uses a pre-trained neural network (TensorFlow.js MobileNet) right in the browser to classify the item. Based on the classification, it maps the user to the nearest correct dustbin on campus using an interactive map.
 
 ### Current Features
@@ -42,7 +44,7 @@ Our roadmap for taking EcoSort AI to the next level includes:
 ---
 
 ## 👥 Our Team
-* **Adarsh M** (USN: 1VA23IS002)
+* **Adarsh M** (USN: 1VA23IS002) 
 * **Kavana H** (USN: 1VA23IS045)
 * **Janani V** (USN: 1VA23IS038)
 * **Shreya P Shetty** (USN: 1VA23IS099)
@@ -54,3 +56,5 @@ Our roadmap for taking EcoSort AI to the next level includes:
 2. Open the project folder.
 3. Open the `index.html` file in any modern web browser (Chrome, Firefox, Safari).
    * *Note: Camera access requires the site to be served over `https://` or `localhost`. If running locally, you can use an extension like VS Code Live Server.*
+
+![PokemonThankyouGIF](https://github.com/user-attachments/assets/221964d6-08a2-406f-bf7e-0b5e13cbfca9)
