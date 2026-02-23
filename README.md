@@ -2,7 +2,7 @@
 
 **[😎 Click Here to Try the Live Demo!](https://eco-sort-mu.vercel.app/)**
 
->>>>>>>>>EcoSort is a smart, web-based waste classification and routing system designed to promote a "Green Campus" environment. By leveraging on-device machine learning, it helps students and staff instantly identify waste types and directs them to the nearest appropriate disposal bin.
+EcoSort is a smart, web-based waste classification and routing system designed to promote a "Green Campus" environment. By leveraging on-device machine learning, it helps students and staff instantly identify waste types and directs them to the nearest appropriate disposal bin.
 
 ---
 
