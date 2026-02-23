@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoSort AI - Campus Waste Manager</title>
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- TensorFlow -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
+
+<!-- Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+body{
+    background: radial-gradient(circle at 20% 20%, #34d399, #065f46);
+    min-height:100vh;
+    overflow-x:hidden;
+}
+
+/* Floating blobs */
+.blob{
+    position:fixed;
+    border-radius:50%;
+    filter:blur(60px);
+    opacity:.35;
+    z-index:-1;
+    animation: float 12s ease-in-out infinite;
+}
+.blob1{width:300px;height:300px;background:#10b981;top:10%;left:5%;}
+.blob2{width:350px;height:350px;background:#22c55e;bottom:10%;right:5%;animation-delay:3s;}
+.blob3{width:250px;height:250px;background:#3b82f6;top:60%;left:40%;animation-delay:6s;}
+
+@keyframes float{
+    0%,100%{transform:translateY(0px);}
+    50%{transform:translateY(-40px);}
+}
+
+/* Glass card */
+.glass{
+    background:rgba(255,255,255,0.12);
+    backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.2);
+}
+
+/* Map */
+#map{height:450px;border-radius:20px;}
+
+.blue{background:rgba(59,130,246,0.4);border-color:#3b82f6;}
+.yellow{background:rgba(234,179,8,0.4);border-color:#eab308;}
+.green{background:rgba(34,197,94,0.4);border-color:#22c55e;}
+</style>
+</head>
+
+<body class="text-white font-sans">
+
+<!-- Floating blobs -->
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+
+<div class="max-w-4xl mx-auto p-6 text-center">
+<div class="glass rounded-3xl p-8 shadow-2xl">
+
+<h1 class="text-5xl font-extrabold mb-3 bg-gradient-to-r from-white to-emerald-200 bg-clip-text text-transparent">
+🌿 EcoSort AI
+</h1>
+
+<p class="text-emerald-100 mb-6 text-lg">
+Campus Waste Classification & Bin Locator
+</p>
+
+<button id="scanBtn"
+class="px-8 py-4 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-xl border border-white/30 font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg">
+📱 Start Camera Scan
+</button>
+
+<div id="videoContainer" class="hidden my-6">
+<video id="video" autoplay playsinline muted class="w-full max-w-md mx-auto rounded-2xl shadow-2xl"></video><br>
+
+<button id="classifyBtn"
+class="px-8 py-4 m-2 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-xl border border-white/30 font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg">
+🔍 Classify Waste
+</button>
+
+<button id="stopBtn"
+class="px-8 py-4 m-2 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-xl border border-white/30 font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg">
+⏹️ Stop Camera
+</button>
+</div>
+
+<div id="result" class="text-4xl my-8 p-10 glass rounded-2xl min-h-[120px] flex items-center justify-center">
+Scan some waste to get started!
+</div>
+
+<div id="binColor" class="text-2xl my-5 p-6 rounded-xl border-4 hidden"></div>
+
+<button id="nearestBtn"
+class="px-8 py-4 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-xl border border-white/30 font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg hidden">
+📍 Show Nearest Location
+</button>
+
+<div id="map" class="hidden my-6"></div>
+<div id="directions" class="text-lg bg-black/30 p-4 rounded-xl my-4"></div>
+
+<div id="loading" class="text-emerald-200 mt-4">
+Loading AI Model... 🚀
+</div>
+
+</div>
+</div>
+
+<script>
+// ================= BIN DATA =================
+const CAMPUS_BINS=[
+{lat:13.168565579120187,lng:77.55920291621797,name:'Dustbin 1',type:'blue'},
+{lat:13.169194402750207,lng:77.55910557037834,name:'Dustbin 2',type:'blue'},
+{lat:13.169982527694938,lng:77.5592728030967,name:'Dustbin 3',type:'yellow'},
+{lat:13.168077974015965,lng:77.55863878912334,name:'Dustbin 4',type:'yellow'},
+{lat:13.167512008741621,lng:77.55889806553515,name:'Dustbin 5',type:'green'}
+];
+
+const WASTE_CLASSES={
+paper:['book','notebook','envelope','document','paper','tissue'],
+cardboard:['carton','box','packaging','cardboard'],
+plastic:['bottle','container','plastic','bag'],
+metal:['can','tin','metal','aluminum'],
+glass:['bottle','jar','glass'],
+organic:['banana','apple','food','vegetable','fruit']
+};
+
+const BIN_MAPPING={
+paper:{color:'blue',name:'🟦 BLUE BIN (Paper/Plastic)'},
+cardboard:{color:'blue',name:'🟦 BLUE BIN (Paper/Plastic)'},
+plastic:{color:'blue',name:'🟦 BLUE BIN (Paper/Plastic)'},
+metal:{color:'yellow',name:'🟨 YELLOW BIN (Metal/Glass)'},
+glass:{color:'yellow',name:'🟨 YELLOW BIN (Metal/Glass)'},
+organic:{color:'green',name:'🟩 GREEN BIN (Organic)'}
+};
+
+let model,video,stream,map,tileLayer;
+let userLat=13.1686,userLng=77.5590;
+
+// INIT
+async function init(){
+document.getElementById('loading').textContent='Loading AI...';
+model=await mobilenet.load();
+document.getElementById('loading').textContent='Ready! 🎉';
+setTimeout(()=>document.getElementById('loading').style.display='none',1500);
+}
+init();
+
+// CAMERA
+scanBtn.onclick=async()=>{
+video=document.getElementById('video');
+videoContainer.classList.remove('hidden');
+scanBtn.classList.add('hidden');
+
+stream=await navigator.mediaDevices.getUserMedia({
+video:{facingMode:'environment',width:640,height:480}
+});
+video.srcObject=stream;
+};
+
+// CLASSIFY
+classifyBtn.onclick=async()=>{
+classifyBtn.disabled=true;
+classifyBtn.textContent='Scanning...';
+
+const canvas=document.createElement('canvas');
+canvas.width=224;canvas.height=224;
+canvas.getContext('2d').drawImage(video,0,0,224,224);
+
+const predictions=await model.classify(canvas);
+const wasteType=classifyWaste(predictions);
+showResult(wasteType);
+
+classifyBtn.disabled=false;
+classifyBtn.textContent='🔍 Classify Waste';
+nearestBtn.classList.remove('hidden');
+};
+
+function classifyWaste(predictions){
+for(let wasteType in WASTE_CLASSES){
+const matches=predictions.filter(p=>
+WASTE_CLASSES[wasteType].some(keyword=>
+p.className.toLowerCase().includes(keyword)
+));
+if(matches.length>0) return wasteType;
+}
+return 'organic';
+}
+
+function showResult(wasteType){
+const bin=BIN_MAPPING[wasteType];
+result.innerHTML=`🗑️ ${wasteType.toUpperCase()}`;
+binColor.classList.remove('hidden');
+binColor.textContent=bin.name;
+binColor.className=`text-2xl my-5 p-6 rounded-xl border-4 ${bin.color}`;
+}
+
+// MAP
+function initMap(){
+map=L.map('map').setView([userLat,userLng],18);
+tileLayer=L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{maxZoom:22}
+).addTo(map);
+}
+
+nearestBtn.onclick=()=>{
+const binType=document.querySelector('#binColor').classList.contains('blue')?'blue':
+document.querySelector('#binColor').classList.contains('yellow')?'yellow':'green';
+
+const matchingBins=CAMPUS_BINS.filter(b=>b.type===binType);
+
+const nearest=matchingBins.sort((a,b)=>{
+return Math.sqrt((a.lat-userLat)**2+(a.lng-userLng)**2)-
+Math.sqrt((b.lat-userLat)**2+(b.lng-userLng)**2);
+})[0];
+
+showMapWithNearest(nearest);
+showDirections(nearest);
+};
+
+function showMapWithNearest(nearestBin){
+if(!map) initMap();
+
+map.setView([userLat,userLng],18);
+
+map.eachLayer(layer=>{
+if(layer instanceof L.Marker || layer instanceof L.CircleMarker){
+map.removeLayer(layer);
+}
+});
+
+L.marker([userLat,userLng],{
+icon:L.divIcon({html:'🧑',iconSize:[30,30]})
+}).addTo(map).bindPopup('You are here');
+
+CAMPUS_BINS.forEach(bin=>{
+L.circleMarker([bin.lat,bin.lng],{
+radius:6,fillColor:bin.type,color:'#fff',
+weight:1,fillOpacity:0.7
+}).addTo(map).bindPopup(bin.name);
+});
+
+L.circleMarker([nearestBin.lat,nearestBin.lng],{
+radius:12,fillColor:nearestBin.type,color:'#fff',
+weight:3,fillOpacity:0.9
+}).addTo(map).bindPopup(`🎯 NEAREST: ${nearestBin.name}`);
+
+map.classList?.remove?.('hidden');
+document.getElementById('map').classList.remove('hidden');
+
+setTimeout(()=>map.invalidateSize(),200);
+}
+
+// DIRECTIONS
+function showDirections(nearestBin){
+const dist=getDistance(userLat,userLng,nearestBin.lat,nearestBin.lng);
+directions.innerHTML=`
+🎯 Nearest: <strong>${nearestBin.name}</strong><br>
+📏 Distance: <strong>${dist.toFixed(0)}m</strong><br>
+🧭 Walk ${getDirection(userLat,userLng,nearestBin.lat,nearestBin.lng)}
+`;
+}
+
+function getDistance(lat1,lng1,lat2,lng2){
+const R=6371000;
+const dLat=(lat2-lat1)*Math.PI/180;
+const dLng=(lng2-lng1)*Math.PI/180;
+const a=Math.sin(dLat/2)**2+
+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+Math.sin(dLng/2)**2;
+return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function getDirection(lat1,lng1,lat2,lng2){
+const dx=lng2-lng1;
+if(dx>0.0005) return 'East';
+if(dx<-0.0005) return 'West';
+const dy=lat2-lat1;
+if(dy>0.0005) return 'North';
+if(dy<-0.0005) return 'South';
+return 'Straight';
+}
+
+// STOP
+stopBtn.onclick=()=>{
+if(stream) stream.getTracks().forEach(t=>t.stop());
+videoContainer.classList.add('hidden');
+scanBtn.classList.remove('hidden');
+result.innerHTML='Scan some waste to get started!';
+binColor.classList.add('hidden');
+nearestBtn.classList.add('hidden');
+document.getElementById('map').classList.add('hidden');
+directions.innerHTML='';
+};
+</script>
+</body>
+</html>
