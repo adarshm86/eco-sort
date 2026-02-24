@@ -12,18 +12,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
     <style>
-        :root {
-            font-family: 'Poppins', sans-serif;
-        }
-        h1, h2, h3, .nav-brand {
-            font-family: 'Outfit', sans-serif;
-        }
+        :root { font-family: 'Poppins', sans-serif; }
+        h1, h2, h3, .nav-brand { font-family: 'Outfit', sans-serif; }
 
         body {
             background: 
@@ -96,6 +92,7 @@
         .blue { background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #60a5fa; box-shadow: 0 0 20px rgba(59,130,246,0.3); }
         .yellow { background: rgba(234,179,8,0.15); border-color: #eab308; color: #fde047; box-shadow: 0 0 20px rgba(234,179,8,0.3); }
         .green { background: rgba(34,197,94,0.15); border-color: #22c55e; color: #86efac; box-shadow: 0 0 20px rgba(34,197,94,0.3); }
+        .red { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fca5a5; box-shadow: 0 0 20px rgba(239,68,68,0.3); }
 
         #map { height: 400px; border-radius: 1.5rem; z-index: 10; border: 2px solid rgba(255,255,255,0.1); }
         video { object-fit: cover; border: 2px solid rgba(255,255,255,0.1); }
@@ -114,7 +111,7 @@
     <div class="fixed top-6 left-0 right-0 z-50 flex justify-center px-4">
         <nav class="glass-premium rounded-full px-8 py-4 flex justify-between items-center w-full max-w-4xl shadow-2xl">
             <div class="nav-brand text-2xl font-black tracking-wider bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-2">
-                <span class="text-2xl">🌿</span> EcoSort<span class="text-white"></span>
+                <span class="text-2xl">🌿</span> EcoSort<span class="text-white">AI</span>
             </div>
             <div class="text-sm font-medium tracking-wide text-emerald-100/70 hidden sm:block">
                 Smart Campus Waste System
@@ -133,7 +130,7 @@
             </h1>
 
             <p class="text-slate-300 mb-10 text-lg md:text-xl font-light max-w-2xl mx-auto">
-                Point your camera at any waste. EcoSort  instantly analyzes it and routes you to the precise bin location on campus.
+                Point your camera at any waste. EcoSort AI instantly analyzes it and routes you to the precise bin location on campus.
             </p>
 
             <button id="scanBtn"
@@ -144,7 +141,7 @@
 
             <div id="loading" class="inline-flex items-center gap-3 text-emerald-300 font-medium px-6 py-3 rounded-full bg-emerald-900/30 border border-emerald-500/30 mt-6 animate-pulse">
                 <svg class="animate-spin h-5 w-5 text-emerald-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                Loading Neural Network...
+                Loading Custom AI Model...
             </div>
 
             <div id="videoContainer" class="hidden mt-12 animate-fade-in">
@@ -166,6 +163,8 @@
             <div id="result" class="text-3xl md:text-4xl font-bold mt-12 p-8 glass-premium rounded-3xl min-h-[120px] flex items-center justify-center transition-all duration-500 text-slate-400">
                 Awaiting scan input...
             </div>
+            
+            <div id="confidence" class="text-sm font-medium tracking-wide text-emerald-200/70 mt-2 hidden"></div>
 
             <div id="binColor" class="text-2xl font-bold my-8 p-6 rounded-2xl border-4 hidden transition-all duration-500 transform scale-95 opacity-0"></div>
 
@@ -186,7 +185,6 @@
             </h2>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mx-auto">
-                
                 <div class="glass-card p-6 rounded-3xl text-center">
                     <div class="w-20 h-20 mx-auto rounded-full bg-gradient-to-tr from-emerald-400 to-cyan-500 p-1 mb-4 shadow-lg">
                         <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center text-3xl font-bold text-white">A</div>
@@ -221,49 +219,51 @@
             </div>
             
             <div class="mt-12 opacity-60 text-sm tracking-wide">
-                &copy; 2026 EcoSort.
+                &copy; 2026 EcoSort AI.
             </div>
         </div>
 
     </div>
 
 <script>
+// ================= AI MODEL URL =================
+const URL = "https://teachablemachine.withgoogle.com/models/MpykLbJTu/";
+
 // ================= BIN DATA =================
 const CAMPUS_BINS=[
     {lat:13.168565579120187,lng:77.55920291621797,name:'Dustbin 1 (Admin Block)',type:'blue'},
     {lat:13.169194402750207,lng:77.55910557037834,name:'Dustbin 2 (Library)',type:'blue'},
     {lat:13.169982527694938,lng:77.5592728030967,name:'Dustbin 3 (Cafeteria)',type:'yellow'},
     {lat:13.168077974015965,lng:77.55863878912334,name:'Dustbin 4 (Labs)',type:'yellow'},
-    {lat:13.167512008741621,lng:77.55889806553515,name:'Dustbin 5 (Hostel)',type:'green'}
+    {lat:13.167512008741621,lng:77.55889806553515,name:'Dustbin 5 (Hostel)',type:'green'},
+    // Added a Red Bin for E-Waste specific to your Teachable Machine model
+    {lat:13.168800000000000,lng:77.55850000000000,name:'Dustbin 6 (E-Waste Dropoff)',type:'red'} 
 ];
 
-const WASTE_CLASSES={
-    paper:['book','notebook','envelope','document','paper','tissue'],
-    cardboard:['carton','box','packaging','cardboard'],
-    plastic:['bottle','container','plastic','bag'],
-    metal:['can','tin','metal','aluminum'],
-    glass:['bottle','jar','glass'],
-    organic:['banana','apple','food','vegetable','fruit','plant']
-};
-
+// Mapping exactly to your Teachable Machine class names
 const BIN_MAPPING={
-    paper:{color:'blue',name:'🟦 BLUE BIN (Paper/Plastic)'},
-    cardboard:{color:'blue',name:'🟦 BLUE BIN (Paper/Plastic)'},
-    plastic:{color:'blue',name:'🟦 BLUE BIN (Paper/Plastic)'},
-    metal:{color:'yellow',name:'🟨 YELLOW BIN (Metal/Glass)'},
-    glass:{color:'yellow',name:'🟨 YELLOW BIN (Metal/Glass)'},
-    organic:{color:'green',name:'🟩 GREEN BIN (Organic)'}
+    "paper":   {color:'blue', name:'🟦 BLUE BIN (Paper)'},
+    "plastic": {color:'blue', name:'🟦 BLUE BIN (Plastic)'},
+    "metal":   {color:'yellow', name:'🟨 YELLOW BIN (Metal)'},
+    "e waste": {color:'red',  name:'🟥 RED BIN (Hazardous/E-Waste)'}
 };
 
 let model,video,stream,map,tileLayer;
-let userLat=13.1686,userLng=77.5590;
+// Set to null initially. We will update these with real GPS later!
+let userLat = null;
+let userLng = null;
 
-// INIT
+// INIT Custom Model
 async function init(){
     try {
-        model=await mobilenet.load();
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+        
+        // Load the model and metadata
+        model = await tmImage.load(modelURL, metadataURL);
+        
         const loader = document.getElementById('loading');
-        loader.innerHTML = '✨ Our Model Ready';
+        loader.innerHTML = '✨ Custom AI Model Ready';
         loader.classList.replace('text-emerald-300', 'text-teal-300');
         loader.classList.replace('animate-pulse', 'animate-none');
         setTimeout(()=> {
@@ -271,7 +271,8 @@ async function init(){
             setTimeout(()=> loader.style.display='none', 500);
         }, 1500);
     } catch(e) {
-        document.getElementById('loading').textContent = '⚠️ Error loading model';
+        document.getElementById('loading').textContent = '⚠️ Error loading custom model';
+        console.error(e);
     }
 }
 init();
@@ -281,6 +282,7 @@ const scanBtn = document.getElementById('scanBtn');
 const videoContainer = document.getElementById('videoContainer');
 const classifyBtn = document.getElementById('classifyBtn');
 const result = document.getElementById('result');
+const confidenceDiv = document.getElementById('confidence');
 const binColor = document.getElementById('binColor');
 const nearestBtn = document.getElementById('nearestBtn');
 const mapDiv = document.getElementById('map');
@@ -302,40 +304,35 @@ scanBtn.onclick=async()=>{
     }
 };
 
-// CLASSIFY
+// CLASSIFY WITH TEACHABLE MACHINE
 classifyBtn.onclick=async()=>{
     classifyBtn.disabled=true;
-    classifyBtn.innerHTML='<span class="animate-pulse">🔄 Scanning...</span>';
+    classifyBtn.innerHTML='<span class="animate-pulse">🔄 Analyzing...</span>';
 
-    const canvas=document.createElement('canvas');
-    canvas.width=224; canvas.height=224;
-    canvas.getContext('2d').drawImage(video,0,0,224,224);
+    // Teachable Machine can predict directly from the video HTML element!
+    const predictions = await model.predict(video);
+    
+    // Find the prediction with the highest probability
+    let highestPrediction = predictions.reduce((prev, current) => 
+        (prev.probability > current.probability) ? prev : current
+    );
 
-    const predictions=await model.classify(canvas);
-    const wasteType=classifyWaste(predictions);
-    showResult(wasteType);
+    showResult(highestPrediction.className.toLowerCase(), highestPrediction.probability);
 
     classifyBtn.disabled=false;
     classifyBtn.innerHTML='🔍 Classify Object';
     nearestBtn.classList.remove('hidden');
 };
 
-function classifyWaste(predictions){
-    for(let wasteType in WASTE_CLASSES){
-        const matches=predictions.filter(p=>
-            WASTE_CLASSES[wasteType].some(keyword=>
-                p.className.toLowerCase().includes(keyword)
-            )
-        );
-        if(matches.length>0) return wasteType;
-    }
-    return 'organic';
-}
-
-function showResult(wasteType){
-    const bin=BIN_MAPPING[wasteType];
+function showResult(wasteType, probability){
+    // Fallback if class isn't in mapping somehow
+    const bin = BIN_MAPPING[wasteType] || {color:'blue', name:'🟦 BLUE BIN (General)'};
+    
     result.innerHTML=`Identified as: <span class="text-white ml-2 uppercase bg-white/10 px-4 py-2 rounded-xl border border-white/20">${wasteType}</span>`;
     result.classList.replace('text-slate-400', 'text-emerald-300');
+    
+    confidenceDiv.innerHTML = `AI Confidence Score: ${(probability * 100).toFixed(1)}%`;
+    confidenceDiv.classList.remove('hidden');
     
     binColor.classList.remove('hidden');
     // Trigger reflow for animation
@@ -353,21 +350,60 @@ function initMap(){
     ).addTo(map);
 }
 
-nearestBtn.onclick=()=>{
-    const el=document.getElementById('binColor');
-    const binType=el.classList.contains('blue')?'blue':
-                  el.classList.contains('yellow')?'yellow':'green';
+nearestBtn.onclick = () => {
+    // 1. Change button text to show loading state
+    const originalText = nearestBtn.innerHTML;
+    nearestBtn.innerHTML = '<span class="animate-pulse">📍 Getting your GPS location...</span>';
 
-    const matchingBins=CAMPUS_BINS.filter(b=>b.type===binType);
+    // 2. Ask the browser for real location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            // SUCCESS: We got the GPS coordinates!
+            (position) => {
+                userLat = position.coords.latitude;
+                userLng = position.coords.longitude;
+                nearestBtn.innerHTML = originalText;
+                calculateAndShowNearest(); // Run the math
+            },
+            // ERROR: User denied permission or GPS is off
+            (error) => {
+                console.warn("GPS Error: ", error.message);
+                alert("⚠️ Could not get exact location. Using default campus center.");
+                userLat = 13.1686; // Fallback to campus center
+                userLng = 77.5590; // Fallback to campus center
+                nearestBtn.innerHTML = originalText;
+                calculateAndShowNearest(); // Run the math anyway
+            },
+            { enableHighAccuracy: true } // Ask for the most precise location
+        );
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+};
 
-    const nearest=matchingBins.sort((a,b)=>{
-        return Math.sqrt((a.lat-userLat)**2+(a.lng-userLng)**2)-
-               Math.sqrt((b.lat-userLat)**2+(b.lng-userLng)**2);
+// 3. This is your exact same math logic, just wrapped in a function so we can call it after GPS loads
+function calculateAndShowNearest() {
+    const el = document.getElementById('binColor');
+    const binType = el.classList.contains('blue') ? 'blue' :
+                    el.classList.contains('yellow') ? 'yellow' :
+                    el.classList.contains('red') ? 'red' : 'green';
+
+    const matchingBins = CAMPUS_BINS.filter(b => b.type === binType);
+
+    if (matchingBins.length === 0) {
+        alert("No bins of this type found nearby!");
+        return;
+    }
+
+    // Math to find the closest bin based on the NEW real GPS coordinates
+    const nearest = matchingBins.sort((a, b) => {
+        return Math.sqrt((a.lat - userLat) ** 2 + (a.lng - userLng) ** 2) -
+               Math.sqrt((b.lat - userLat) ** 2 + (b.lng - userLng) ** 2);
     })[0];
 
     showMapWithNearest(nearest);
     showDirections(nearest);
-};
+}
 
 function showMapWithNearest(nearestBin){
     mapDiv.classList.remove('hidden');
@@ -393,14 +429,19 @@ function showMapWithNearest(nearestBin){
     }).addTo(map).bindPopup('You are here');
 
     CAMPUS_BINS.forEach(bin=>{
-        const binColorCode = bin.type === 'blue' ? '#3b82f6' : bin.type === 'yellow' ? '#eab308' : '#22c55e';
+        const binColorCode = bin.type === 'blue' ? '#3b82f6' : 
+                             bin.type === 'yellow' ? '#eab308' : 
+                             bin.type === 'red' ? '#ef4444' : '#22c55e';
         L.circleMarker([bin.lat,bin.lng],{
             radius:6,fillColor:binColorCode,color:'#fff',
             weight:2,fillOpacity:0.8
         }).addTo(map).bindPopup(bin.name);
     });
 
-    const targetColorCode = nearestBin.type === 'blue' ? '#3b82f6' : nearestBin.type === 'yellow' ? '#eab308' : '#22c55e';
+    const targetColorCode = nearestBin.type === 'blue' ? '#3b82f6' : 
+                            nearestBin.type === 'yellow' ? '#eab308' : 
+                            nearestBin.type === 'red' ? '#ef4444' : '#22c55e';
+                            
     L.circleMarker([nearestBin.lat,nearestBin.lng],{
         radius:14,fillColor:targetColorCode,color:'#fff',
         weight:3,fillOpacity:1, className: 'animate-pulse'
@@ -452,6 +493,8 @@ document.getElementById('stopBtn').onclick=()=>{
     
     result.innerHTML='Awaiting scan input...';
     result.classList.replace('text-emerald-300', 'text-slate-400');
+    
+    confidenceDiv.classList.add('hidden');
     
     binColor.classList.add('hidden');
     binColor.classList.replace('opacity-100', 'opacity-0');
