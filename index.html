@@ -231,12 +231,11 @@ const URL = "https://teachablemachine.withgoogle.com/models/MpykLbJTu/";
 
 // ================= BIN DATA =================
 const CAMPUS_BINS=[
-    {lat:13.168565579120187,lng:77.55920291621797,name:'Dustbin 1 (Admin Block)',type:'blue'},
-    {lat:13.169194402750207,lng:77.55910557037834,name:'Dustbin 2 (Library)',type:'blue'},
+    {lat:13.168565579120187,lng:77.55920291621797,name:'Dustbin 1 (Canteen)',type:'blue'},
+    {lat:13.169194402750207,lng:77.55910557037834,name:'Dustbin 2 (Girls Hostel)',type:'blue'},
     {lat:13.169982527694938,lng:77.5592728030967,name:'Dustbin 3 (Cafeteria)',type:'yellow'},
-    {lat:13.168077974015965,lng:77.55863878912334,name:'Dustbin 4 (Labs)',type:'yellow'},
-    {lat:13.167512008741621,lng:77.55889806553515,name:'Dustbin 5 (Hostel)',type:'green'},
-    // Added a Red Bin for E-Waste specific to your Teachable Machine model
+    {lat:13.168077974015965,lng:77.55863878912334,name:'Dustbin 4 (BB court)',type:'yellow'},
+    {lat:13.167512008741621,lng:77.55889806553515,name:'Dustbin 5 (East gate)',type:'green'},
     {lat:13.168800000000000,lng:77.55850000000000,name:'Dustbin 6 (E-Waste Dropoff)',type:'red'} 
 ];
 
@@ -304,15 +303,29 @@ scanBtn.onclick=async()=>{
     }
 };
 
-// CLASSIFY WITH TEACHABLE MACHINE
+// CLASSIFY WITH TEACHABLE MACHINE (SQUARE CROP FIX APPLIED)
 classifyBtn.onclick=async()=>{
     classifyBtn.disabled=true;
     classifyBtn.innerHTML='<span class="animate-pulse">🔄 Analyzing...</span>';
 
-    // Teachable Machine can predict directly from the video HTML element!
-    const predictions = await model.predict(video);
+    // 1. Create a perfect square canvas (This fixes the AI distortion!)
+    const canvas = document.createElement('canvas');
+    canvas.width = 224; 
+    canvas.height = 224;
+    const ctx = canvas.getContext('2d');
+
+    // 2. Do the math to crop only the center square of your video feed
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const startX = (video.videoWidth - size) / 2;
+    const startY = (video.videoHeight - size) / 2;
+
+    // 3. Draw that center square onto the canvas
+    ctx.drawImage(video, startX, startY, size, size, 0, 0, 224, 224);
+
+    // 4. Send the perfectly square canvas to the AI instead of the raw, stretched video
+    const predictions = await model.predict(canvas);
     
-    // Find the prediction with the highest probability
+    // 5. Find the prediction with the highest probability
     let highestPrediction = predictions.reduce((prev, current) => 
         (prev.probability > current.probability) ? prev : current
     );
@@ -343,7 +356,7 @@ function showResult(wasteType, probability){
 
 // MAP
 function initMap(){
-    map=L.map('map').setView([userLat,userLng],18);
+    map=L.map('map').setView([13.1686, 77.5590],18); // Default fallback view
     tileLayer=L.tileLayer(
         'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', 
         {maxZoom:22, attribution: '&copy; OpenStreetMap contributors'}
@@ -381,7 +394,7 @@ nearestBtn.onclick = () => {
     }
 };
 
-// 3. This is your exact same math logic, just wrapped in a function so we can call it after GPS loads
+// 3. Math logic wrapped in a function to call after GPS loads
 function calculateAndShowNearest() {
     const el = document.getElementById('binColor');
     const binType = el.classList.contains('blue') ? 'blue' :
